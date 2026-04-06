@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
-import 'package:money_tracker/models/user.dart';
+import 'package:money_tracker/general/models/user.dart';
 
 class AuthProvider with ChangeNotifier {
   static const String userBoxName = 'user_profile';
@@ -122,6 +122,110 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticated = true;
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> updateProfile({
+    required String fullName,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.updateDisplayName(fullName);
+        
+        // Update Firestore
+        await _firestore.collection('users').doc(user.uid).update({
+          'name': fullName,
+        });
+
+        // Update local Hive
+        final box = await Hive.openBox<AppUser>(userBoxName);
+        if (box.isNotEmpty) {
+          final localUser = box.getAt(0);
+          if (localUser != null) {
+            final updatedUser = AppUser(
+              id: localUser.id,
+              name: fullName,
+              phoneNumber: localUser.phoneNumber,
+              initialBalance: localUser.initialBalance,
+              joinedDate: localUser.joinedDate,
+            );
+            await box.putAt(0, updatedUser);
+            _currentUser = updatedUser;
+          }
+        }
+      }
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> updateEmail({
+    required String newEmail,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.verifyBeforeUpdateEmail(newEmail);
+        
+        // Update Firestore (email field)
+        await _firestore.collection('users').doc(user.uid).update({
+          'email': newEmail,
+        });
+
+        // Update local Hive
+        final box = await Hive.openBox<AppUser>(userBoxName);
+        if (box.isNotEmpty) {
+          final localUser = box.getAt(0);
+          if (localUser != null) {
+            final updatedUser = AppUser(
+              id: localUser.id,
+              name: localUser.name,
+              phoneNumber: newEmail,
+              initialBalance: localUser.initialBalance,
+              joinedDate: localUser.joinedDate,
+            );
+            await box.putAt(0, updatedUser);
+            _currentUser = updatedUser;
+          }
+        }
+      }
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> updatePassword({
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.updatePassword(newPassword);
+      }
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> logout() async {

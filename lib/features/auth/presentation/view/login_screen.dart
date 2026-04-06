@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:money_tracker/providers/auth_provider.dart';
-import 'package:money_tracker/providers/money_record_provider.dart';
+import 'package:money_tracker/features/auth/presentation/provider/auth_provider.dart';
+import 'package:money_tracker/features/dashboard/presentation/provider/money_record_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

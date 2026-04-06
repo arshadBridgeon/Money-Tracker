@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:intl/intl.dart';
-import 'package:money_tracker/models/transaction.dart';
+import 'package:money_tracker/general/models/transaction.dart';
 
 class RecordTile extends StatelessWidget {
   final MoneyRecord record;

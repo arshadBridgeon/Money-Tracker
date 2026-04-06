@@ -4,12 +4,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:money_tracker/firebase_options.dart';
-import 'package:money_tracker/models/transaction.dart';
-import 'package:money_tracker/models/user.dart';
-import 'package:money_tracker/providers/money_record_provider.dart';
-import 'package:money_tracker/providers/auth_provider.dart';
-import 'package:money_tracker/screens/home_screen.dart';
-import 'package:money_tracker/screens/login_screen.dart';
+import 'package:money_tracker/features/dashboard/presentation/provider/money_record_provider.dart';
+import 'package:money_tracker/features/auth/presentation/provider/auth_provider.dart';
+import 'package:money_tracker/features/reminder/presentation/provider/reminder_provider.dart';
+import 'package:money_tracker/general/models/transaction.dart';
+import 'package:money_tracker/general/models/user.dart';
+import 'package:money_tracker/general/models/bill_reminder.dart';
+import 'package:money_tracker/features/dashboard/presentation/view/home_screen.dart';
+import 'package:money_tracker/features/auth/presentation/view/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +25,7 @@ void main() async {
   // Register Adapters
   Hive.registerAdapter(MoneyRecordAdapter());
   Hive.registerAdapter(AppUserAdapter());
+  Hive.registerAdapter(BillReminderAdapter());
 
   // Note: We don't pre-open boxes here as they are user-specific now
 
@@ -33,6 +36,7 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => MoneyRecordProvider()..fetchTransactions(),
         ),
+        ChangeNotifierProvider(create: (_) => ReminderProvider()..init()),
       ],
       child: const MoneyTrackerApp(),
     ),

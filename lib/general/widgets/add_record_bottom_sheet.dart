@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:money_tracker/models/transaction.dart';
-import 'package:money_tracker/providers/money_record_provider.dart';
+import 'package:money_tracker/general/models/transaction.dart';
+import 'package:money_tracker/features/dashboard/presentation/provider/money_record_provider.dart';
 
 class AddRecordSheet extends StatefulWidget {
   const AddRecordSheet({super.key});
