@@ -329,12 +329,15 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Dismissible(
                     key: Key(record.id),
                     direction: DismissDirection.endToStart,
+                    confirmDismiss: (direction) => _showDeleteConfirmation(context, record.title),
                     onDismissed: (_) {
                       provider.deleteTransaction(originalIndexInProvider);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('${record.title} removed'),
                           backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       );
                     },
@@ -845,4 +848,83 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+  Future<bool?> _showDeleteConfirmation(BuildContext context, String title) {
+    return showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Material(
+          type: MaterialType.transparency,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Center(
+              child: GlassmorphicContainer(
+                width: MediaQuery.of(context).size.width * 0.8,
+                height: 200,
+                borderRadius: 24,
+                blur: 20,
+                alignment: Alignment.center,
+                border: 2,
+                linearGradient: LinearGradient(
+                  colors: [
+                    Colors.white.withAlpha(20),
+                    Colors.white.withAlpha(5),
+                  ],
+                ),
+                borderGradient: LinearGradient(
+                  colors: [
+                    Colors.white.withAlpha(100),
+                    Colors.redAccent.withAlpha(100),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Delete Record?',
+                        style: GoogleFonts.lexend(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Are you sure you want to delete "$title"?',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(fontSize: 14, color: Colors.white70),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
+

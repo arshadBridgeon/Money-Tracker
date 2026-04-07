@@ -362,13 +362,23 @@ class _StatsScreenState extends State<StatsScreen> {
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: maxAmount * 1.2,
+        maxY: maxAmount * 1.35, // Increased padding for labels
         barTouchData: BarTouchData(
+          enabled: true,
+          handleBuiltInTouches: true,
           touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => Colors.transparent, // Fixes lint error
+            tooltipPadding: EdgeInsets.zero,
+            tooltipMargin: 8,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final isHighSpending = !_isMonthly && rod.toY > 150;
               return BarTooltipItem(
-                '${data[groupIndex].label}\n₹${rod.toY.toStringAsFixed(0)}',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                '₹${rod.toY.toStringAsFixed(0)}',
+                GoogleFonts.lexend(
+                  color: isHighSpending ? Colors.redAccent : const Color(0xFF6366F1),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
               );
             },
           ),
@@ -378,21 +388,24 @@ class _StatsScreenState extends State<StatsScreen> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 30,
               getTitlesWidget: (value, meta) {
                 int index = value.toInt();
                 if (index >= 0 && index < data.length) {
-                  if (!_isMonthly && data.length > 10 && index % 5 != 0 && index != data.length - 1) {
+                  // Optimization for readability when there are many bars
+                  if (!_isMonthly && data.length > 15 && index % 3 != 0 && index != data.length - 1) {
                     return const SizedBox();
                   }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
+                  return SideTitleWidget(
+                    meta: meta, // Fixes lint error
+                    space: 8,
                     child: Text(
                       data[index].label.replaceAll('Day ', ''),
-                      style: GoogleFonts.lexend(color: Colors.white54, fontSize: 10),
+                      style: GoogleFonts.lexend(color: Colors.white70, fontSize: 11),
                     ),
                   );
                 }
-                return const Text('');
+                return const SizedBox();
               },
             ),
           ),
@@ -403,21 +416,29 @@ class _StatsScreenState extends State<StatsScreen> {
         borderData: FlBorderData(show: false),
         gridData: const FlGridData(show: false),
         barGroups: data.asMap().entries.map((entry) {
+          final isHighSpending = !_isMonthly && entry.value.amount > 150;
           return BarChartGroupData(
             x: entry.key,
             barRods: [
               BarChartRodData(
                 toY: entry.value.amount,
-                color: const Color(0xFF6366F1),
-                width: _isMonthly ? 16 : 8,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                gradient: LinearGradient(
+                  colors: isHighSpending 
+                      ? [Colors.red.withAlpha(200), Colors.redAccent] 
+                      : [const Color(0xFF6366F1), const Color(0xFFA5B4FC)],
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                ),
+                width: _isMonthly ? 20 : 14, // Wider bars for better readability
+                borderRadius: BorderRadius.circular(6),
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
-                  toY: maxAmount * 1.2,
-                  color: Colors.white.withAlpha(12),
+                  toY: maxAmount * 1.35,
+                  color: Colors.white.withAlpha(10),
                 ),
               ),
             ],
+            showingTooltipIndicators: [0], // Make amount labels always visible
           );
         }).toList(),
       ),
