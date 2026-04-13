@@ -65,11 +65,15 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                      child: _buildGlassAvatar(
-                        auth.currentUser?.name ?? 'User',
+                    IconButton(
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                      icon: const Icon(
+                        Icons.menu_rounded,
+                        color: Colors.white,
+                        size: 32,
                       ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -291,8 +295,9 @@ class _HomeScreenState extends State<HomeScreen>
     final List<DateTime> sortedDates = groupedByDate.keys.toList()
       ..sort((a, b) => b.compareTo(a));
 
-    final double tabTotal =
-        showIncome ? provider.totalIncome : provider.totalExpense;
+    final double tabTotal = showIncome
+        ? provider.totalIncome
+        : provider.totalExpense;
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -350,58 +355,59 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             )
           else
-            ...sortedDates.expand((date) => [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-                      child: Text(
-                        _formatDateHeader(date),
-                        style: GoogleFonts.lexend(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white38,
-                          letterSpacing: 0.5,
-                        ),
+            ...sortedDates.expand(
+              (date) => [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+                    child: Text(
+                      _formatDateHeader(date),
+                      style: GoogleFonts.lexend(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white38,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final record = groupedByDate[date]![index];
-                        final originalIndexInProvider = provider.transactions
-                            .indexWhere((t) => t.id == record.id);
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final record = groupedByDate[date]![index];
+                    final originalIndexInProvider = provider.transactions
+                        .indexWhere((t) => t.id == record.id);
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 4),
-                          child: Dismissible(
-                            key: Key(record.id),
-                            direction: DismissDirection.endToStart,
-                            confirmDismiss: (direction) =>
-                                _showDeleteConfirmation(context, record.title),
-                            onDismissed: (_) {
-                              provider
-                                  .deleteTransaction(originalIndexInProvider);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${record.title} removed'),
-                                  backgroundColor: Colors.redAccent,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
-                                ),
-                              );
-                            },
-                            background: _buildDismissBackground(),
-                            child: RecordTile(record: record),
-                          ),
-                        );
-                      },
-                      childCount: groupedByDate[date]!.length,
-                    ),
-                  ),
-                ]),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 4,
+                      ),
+                      child: Dismissible(
+                        key: Key(record.id),
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (direction) =>
+                            _showDeleteConfirmation(context, record.title),
+                        onDismissed: (_) {
+                          provider.deleteTransaction(originalIndexInProvider);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${record.title} removed'),
+                              backgroundColor: Colors.redAccent,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        },
+                        background: _buildDismissBackground(),
+                        child: RecordTile(record: record),
+                      ),
+                    );
+                  }, childCount: groupedByDate[date]!.length),
+                ),
+              ],
+            ),
 
           // Loader Sliver
           if (provider.isLoadingMore && provider.hasMore(showIncome))
