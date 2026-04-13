@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen>
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          '₹${provider.totalBalance.toStringAsFixed(2)}',
+                          '₹ ${provider.totalBalance.toStringAsFixed(0)}',
                           style: GoogleFonts.lexend(
                             fontSize: 38,
                             fontWeight: FontWeight.bold,
@@ -479,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen>
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
           Text(
-            '₹${tabTotal.toStringAsFixed(2)}',
+            '₹${tabTotal.toStringAsFixed(0)}',
             style: GoogleFonts.lexend(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -619,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              '₹${balance.toStringAsFixed(2)} available for spending',
+              '₹${balance.toStringAsFixed(0)} available for spending',
               style: const TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ],
