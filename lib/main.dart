@@ -10,6 +10,7 @@ import 'package:money_tracker/features/reminder/presentation/provider/reminder_p
 import 'package:money_tracker/general/models/transaction.dart';
 import 'package:money_tracker/general/models/user.dart';
 import 'package:money_tracker/general/models/bill_reminder.dart';
+import 'package:money_tracker/features/dashboard/presentation/provider/settings_provider.dart';
 import 'package:money_tracker/features/dashboard/presentation/view/home_screen.dart';
 import 'package:money_tracker/features/auth/presentation/view/login_screen.dart';
 
@@ -37,6 +38,7 @@ void main() async {
           create: (_) => MoneyRecordProvider()..fetchTransactions(),
         ),
         ChangeNotifierProvider(create: (_) => ReminderProvider()..init()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
       child: const MoneyTrackerApp(),
     ),

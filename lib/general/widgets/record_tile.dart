@@ -49,7 +49,7 @@ class RecordTile extends StatelessWidget {
             ),
           ),
           subtitle: Text(
-            DateFormat('MMM dd, yyyy').format(record.date),
+            DateFormat('hh:mm a').format(record.date),
             style: const TextStyle(fontSize: 12, color: Colors.white54),
           ),
           trailing: Text(

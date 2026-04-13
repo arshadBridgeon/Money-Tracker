@@ -65,4 +65,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'money-tracker-c69e6.firebasestorage.app',
     iosBundleId: 'com.example.moneyTracker',
   );
+
 }

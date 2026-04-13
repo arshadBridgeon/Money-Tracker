@@ -14,6 +14,8 @@ import 'package:money_tracker/features/auth/presentation/view/profile_settings_s
 import 'package:intl/intl.dart';
 import 'package:money_tracker/features/reminder/presentation/view/reminder_screen.dart';
 import 'package:money_tracker/features/reminder/presentation/provider/reminder_provider.dart';
+import 'package:money_tracker/features/dashboard/presentation/view/about_screen.dart';
+import 'package:money_tracker/general/models/transaction.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -107,13 +109,20 @@ class _HomeScreenState extends State<HomeScreen>
                                 } else {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const ReminderScreen()),
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ReminderScreen(),
+                                    ),
                                   );
                                 }
                               },
                               icon: Icon(
-                                count > 0 ? Icons.notifications_active_rounded : Icons.notifications_none_rounded,
-                                color: count > 0 ? Colors.orangeAccent : Colors.white70,
+                                count > 0
+                                    ? Icons.notifications_active_rounded
+                                    : Icons.notifications_none_rounded,
+                                color: count > 0
+                                    ? Colors.orangeAccent
+                                    : Colors.white70,
                                 size: 28,
                               ),
                             ),
@@ -126,13 +135,25 @@ class _HomeScreenState extends State<HomeScreen>
                                   decoration: const BoxDecoration(
                                     color: Colors.redAccent,
                                     shape: BoxShape.circle,
-                                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 4,
+                                      ),
+                                    ],
                                   ),
-                                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 18,
+                                    minHeight: 18,
+                                  ),
                                   child: Center(
                                     child: Text(
                                       '$count',
-                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -256,18 +277,29 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFilteredList(MoneyRecordProvider provider, bool showIncome) {
-    final filteredRecords = provider.transactions
-        .where((tx) => tx.isIncome == showIncome)
-        .toList();
-    final double tabTotal = showIncome
-        ? provider.totalIncome
-        : provider.totalExpense;
+    final filteredRecords = provider.getFilteredTransactions(showIncome);
+
+    final Map<DateTime, List<MoneyRecord>> groupedByDate = {};
+    for (var tx in filteredRecords) {
+      final date = DateTime(tx.date.year, tx.date.month, tx.date.day);
+      if (!groupedByDate.containsKey(date)) {
+        groupedByDate[date] = [];
+      }
+      groupedByDate[date]!.add(tx);
+    }
+
+    final List<DateTime> sortedDates = groupedByDate.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    final double tabTotal =
+        showIncome ? provider.totalIncome : provider.totalExpense;
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.metrics.pixels >=
-            notification.metrics.maxScrollExtent - 200) {
-          context.read<MoneyRecordProvider>().fetchMoreTransactions();
+                notification.metrics.maxScrollExtent - 200 &&
+            provider.hasMore(showIncome)) {
+          context.read<MoneyRecordProvider>().fetchMoreTransactions(showIncome);
         }
         return false;
       },
@@ -318,38 +350,61 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             )
           else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final record = filteredRecords[index];
-                final originalIndexInProvider = provider.transactions
-                    .indexWhere((t) => t.id == record.id);
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Dismissible(
-                    key: Key(record.id),
-                    direction: DismissDirection.endToStart,
-                    confirmDismiss: (direction) => _showDeleteConfirmation(context, record.title),
-                    onDismissed: (_) {
-                      provider.deleteTransaction(originalIndexInProvider);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${record.title} removed'),
-                          backgroundColor: Colors.redAccent,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ...sortedDates.expand((date) => [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+                      child: Text(
+                        _formatDateHeader(date),
+                        style: GoogleFonts.lexend(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white38,
+                          letterSpacing: 0.5,
                         ),
-                      );
-                    },
-                    background: _buildDismissBackground(),
-                    child: RecordTile(record: record),
+                      ),
+                    ),
                   ),
-                );
-              }, childCount: filteredRecords.length),
-            ),
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final record = groupedByDate[date]![index];
+                        final originalIndexInProvider = provider.transactions
+                            .indexWhere((t) => t.id == record.id);
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 4),
+                          child: Dismissible(
+                            key: Key(record.id),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (direction) =>
+                                _showDeleteConfirmation(context, record.title),
+                            onDismissed: (_) {
+                              provider
+                                  .deleteTransaction(originalIndexInProvider);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${record.title} removed'),
+                                  backgroundColor: Colors.redAccent,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                            },
+                            background: _buildDismissBackground(),
+                            child: RecordTile(record: record),
+                          ),
+                        );
+                      },
+                      childCount: groupedByDate[date]!.length,
+                    ),
+                  ),
+                ]),
 
           // Loader Sliver
-          if (provider.isLoadingMore)
+          if (provider.isLoadingMore && provider.hasMore(showIncome))
             const SliverPadding(
               padding: EdgeInsets.symmetric(vertical: 24),
               sliver: SliverToBoxAdapter(
@@ -378,6 +433,17 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     );
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final checkDate = DateTime(date.year, date.month, date.day);
+
+    if (checkDate == today) return 'Today';
+    if (checkDate == yesterday) return 'Yesterday';
+    return DateFormat('EEE, dd MMM yyyy').format(date);
   }
 
   Widget _buildTabSummaryCard(bool showIncome, double tabTotal) {
@@ -689,7 +755,9 @@ class _HomeScreenState extends State<HomeScreen>
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProfileSettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileSettingsScreen(),
+                  ),
                 );
               },
             ),
@@ -711,7 +779,9 @@ class _HomeScreenState extends State<HomeScreen>
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ReminderScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ReminderScreen(),
+                  ),
                 );
               },
             ),
@@ -722,14 +792,22 @@ class _HomeScreenState extends State<HomeScreen>
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
                 );
               },
             ),
             _buildDrawerItem(
-              icon: Icons.help_outline_rounded,
-              title: 'Help & Support',
-              onTap: () => Navigator.pop(context),
+              icon: Icons.info_outline_rounded,
+              title: 'About this App',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AboutScreen()),
+                );
+              },
             ),
 
             const Spacer(),
@@ -793,6 +871,7 @@ class _HomeScreenState extends State<HomeScreen>
       onTap: onTap,
     );
   }
+
   void _showOverdueDialog(BuildContext context, ReminderProvider provider) {
     showDialog(
       context: context,
@@ -800,10 +879,15 @@ class _HomeScreenState extends State<HomeScreen>
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orangeAccent,
+              ),
               const SizedBox(width: 10),
               Text(
                 'Payment Alerts',
@@ -820,9 +904,24 @@ class _HomeScreenState extends State<HomeScreen>
                 final bill = provider.overdueReminders[index];
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(bill.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text('Overdue since ${DateFormat('MMM dd').format(bill.dueDate)}', style: const TextStyle(color: Colors.white38)),
-                  trailing: Text('₹${bill.amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+                  title: Text(
+                    bill.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Overdue since ${DateFormat('MMM dd').format(bill.dueDate)}',
+                    style: const TextStyle(color: Colors.white38),
+                  ),
+                  trailing: Text(
+                    '₹${bill.amount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 );
               },
             ),
@@ -830,18 +929,28 @@ class _HomeScreenState extends State<HomeScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Dismiss', style: TextStyle(color: Colors.white38)),
+              child: const Text(
+                'Dismiss',
+                style: TextStyle(color: Colors.white38),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ReminderScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ReminderScreen(),
+                  ),
                 );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
-              child: const Text('Manage Bills', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+              ),
+              child: const Text(
+                'Manage Bills',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -895,7 +1004,10 @@ class _HomeScreenState extends State<HomeScreen>
                       Text(
                         'Are you sure you want to delete "$title"?',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(fontSize: 14, color: Colors.white70),
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          color: Colors.white70,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       Row(
@@ -903,14 +1015,19 @@ class _HomeScreenState extends State<HomeScreen>
                         children: [
                           TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(color: Colors.white60),
+                            ),
                           ),
                           ElevatedButton(
                             onPressed: () => Navigator.pop(context, true),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.redAccent,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             child: const Text('Delete'),
                           ),
@@ -927,4 +1044,3 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 }
-
