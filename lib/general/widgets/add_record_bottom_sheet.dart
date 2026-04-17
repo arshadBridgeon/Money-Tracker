@@ -7,7 +7,8 @@ import 'package:money_tracker/general/models/transaction.dart';
 import 'package:money_tracker/features/dashboard/presentation/provider/money_record_provider.dart';
 
 class AddRecordSheet extends StatefulWidget {
-  const AddRecordSheet({super.key});
+  final MoneyRecord? record;
+  const AddRecordSheet({super.key, this.record});
 
   @override
   State<AddRecordSheet> createState() => _AddRecordSheetState();
@@ -17,6 +18,16 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   bool _isIncome = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.record != null) {
+      _titleController.text = widget.record!.title;
+      _amountController.text = widget.record!.amount.toString();
+      _isIncome = widget.record!.isIncome;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +72,9 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Add Record',
-                    style: TextStyle(
+                  Text(
+                    widget.record == null ? 'Add Record' : 'Edit Record',
+                    style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -106,9 +117,9 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Add Record',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    child: Text(
+                      widget.record == null ? 'Add Record' : 'Update Record',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
                 ],
@@ -173,15 +184,26 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
     
     final amount = double.tryParse(amountText) ?? 0.0;
     
-    final tx = MoneyRecord(
-      id: const Uuid().v4(),
-      title: title,
-      amount: amount,
-      date: DateTime.now(),
-      isIncome: _isIncome,
-    );
+    if (widget.record != null) {
+      final updatedRecord = MoneyRecord(
+        id: widget.record!.id,
+        title: title,
+        amount: amount,
+        date: widget.record!.date, // Keep original date or update it? Usually keep.
+        isIncome: _isIncome,
+      );
+      context.read<MoneyRecordProvider>().updateTransaction(updatedRecord);
+    } else {
+      final tx = MoneyRecord(
+        id: const Uuid().v4(),
+        title: title,
+        amount: amount,
+        date: DateTime.now(),
+        isIncome: _isIncome,
+      );
+      context.read<MoneyRecordProvider>().addTransaction(tx);
+    }
     
-    context.read<MoneyRecordProvider>().addTransaction(tx);
     Navigator.of(context).pop();
   }
 }

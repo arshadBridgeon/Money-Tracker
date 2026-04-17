@@ -266,6 +266,32 @@ class MoneyRecordProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateTransaction(MoneyRecord updatedRecord) async {
+    if (_auth.currentUser == null) return;
+
+    final box = await Hive.openBox<MoneyRecord>(_userBoxName);
+    await box.put(updatedRecord.id, updatedRecord);
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(_auth.currentUser!.uid)
+          .collection('transactions')
+          .doc(updatedRecord.id)
+          .update({
+        'title': updatedRecord.title,
+        'amount': updatedRecord.amount,
+        'date': updatedRecord.date,
+        'isIncome': updatedRecord.isIncome,
+      });
+    } catch (e) {
+      debugPrint('Firestore update error: $e');
+    }
+
+    _updateRecordsFromBox(box);
+    notifyListeners();
+  }
+
   void _updateRecordsFromBox(Box<MoneyRecord> box) {
     final allItems = box.values.toList();
     final Map<String, MoneyRecord> uniqueItems = {};

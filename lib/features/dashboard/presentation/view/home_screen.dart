@@ -401,7 +401,10 @@ class _HomeScreenState extends State<HomeScreen>
                           );
                         },
                         background: _buildDismissBackground(),
-                        child: RecordTile(record: record),
+                        child: RecordTile(
+                          record: record,
+                          onTap: () => _showAddRecordSheet(context, record: record),
+                        ),
                       ),
                     );
                   }, childCount: groupedByDate[date]!.length),
@@ -628,12 +631,12 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showAddRecordSheet(BuildContext context) {
+  void _showAddRecordSheet(BuildContext context, {MoneyRecord? record}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const AddRecordSheet(),
+      builder: (_) => AddRecordSheet(record: record),
     );
   }
 
