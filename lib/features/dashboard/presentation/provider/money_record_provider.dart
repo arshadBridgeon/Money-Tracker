@@ -238,8 +238,9 @@ class MoneyRecordProvider with ChangeNotifier {
       debugPrint('Firestore sync error: $e');
     }
 
-    // Instead of refetching all, just prepend or re-init pager
-    _records.insert(0, tx);
+    // Add to local list and sort to maintain chronological order
+    _records.add(tx);
+    _records.sort((a, b) => b.date.compareTo(a.date));
     notifyListeners();
   }
 

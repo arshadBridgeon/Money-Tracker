@@ -308,7 +308,11 @@ class _HomeScreenState extends State<HomeScreen>
         }
         return false;
       },
-      child: CustomScrollView(
+      child: RefreshIndicator(
+        onRefresh: () => provider.fetchTransactions(),
+        color: const Color(0xFF6366F1),
+        backgroundColor: const Color(0xFF1E293B),
+        child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
@@ -441,8 +445,9 @@ class _HomeScreenState extends State<HomeScreen>
           const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _formatDateHeader(DateTime date) {
     final now = DateTime.now();
@@ -653,7 +658,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: SingleChildScrollView(
                 child: GlassmorphicContainer(
                   width: 320,
-                  height: 220,
+                  height: 250,
                   borderRadius: 24,
                   blur: 20,
                   alignment: Alignment.center,
@@ -976,77 +981,80 @@ class _HomeScreenState extends State<HomeScreen>
           type: MaterialType.transparency,
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Center(
-              child: GlassmorphicContainer(
-                width: MediaQuery.of(context).size.width * 0.8,
-                height: 200,
-                borderRadius: 24,
-                blur: 20,
-                alignment: Alignment.center,
-                border: 2,
-                linearGradient: LinearGradient(
-                  colors: [
-                    Colors.white.withAlpha(20),
-                    Colors.white.withAlpha(5),
-                  ],
-                ),
-                borderGradient: LinearGradient(
-                  colors: [
-                    Colors.white.withAlpha(100),
-                    Colors.redAccent.withAlpha(100),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Delete Record?',
-                        style: GoogleFonts.lexend(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Are you sure you want to delete "$title"?',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.white60),
-                            ),
+              child: SingleChildScrollView(
+                child: GlassmorphicContainer(
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  height: 250, // Increased height to prevent overflow
+                  borderRadius: 24,
+                  blur: 20,
+                  alignment: Alignment.center,
+                  border: 2,
+                  linearGradient: LinearGradient(
+                    colors: [
+                      Colors.white.withAlpha(20),
+                      Colors.white.withAlpha(5),
+                    ],
+                  ),
+                  borderGradient: LinearGradient(
+                    colors: [
+                      Colors.white.withAlpha(100),
+                      Colors.redAccent.withAlpha(100),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Delete Record?',
+                          style: GoogleFonts.lexend(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Are you sure you want to delete "$title"?',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            color: Colors.white70,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white60),
                               ),
                             ),
-                            child: const Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    ],
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ),
         );
       },

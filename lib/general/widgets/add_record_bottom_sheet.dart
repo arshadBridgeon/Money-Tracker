@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:money_tracker/general/models/transaction.dart';
 import 'package:money_tracker/features/dashboard/presentation/provider/money_record_provider.dart';
@@ -17,6 +18,7 @@ class AddRecordSheet extends StatefulWidget {
 class _AddRecordSheetState extends State<AddRecordSheet> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
   bool _isIncome = true;
 
   @override
@@ -26,6 +28,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
       _titleController.text = widget.record!.title;
       _amountController.text = widget.record!.amount.toString();
       _isIncome = widget.record!.isIncome;
+      _selectedDate = widget.record!.date;
     }
   }
 
@@ -93,6 +96,10 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
                     Icons.attach_money_rounded,
                     keyboardType: TextInputType.number,
                   ),
+                  const SizedBox(height: 16),
+
+                  // Date Picker
+                  _buildDatePicker(),
                   const SizedBox(height: 24),
                   
                   // Income/Expense Toggle
@@ -149,6 +156,43 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
     );
   }
 
+  Widget _buildDatePicker() {
+    return GestureDetector(
+      onTap: () async {
+        final DateTime? picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime(2000),
+          lastDate: DateTime.now(),
+        );
+        if (picked != null && picked != _selectedDate) {
+          setState(() {
+            _selectedDate = picked;
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(12),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today_rounded, color: Colors.white54),
+            const SizedBox(width: 16),
+            Text(
+              DateFormat('EEE, dd MMM yyyy').format(_selectedDate),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const Spacer(),
+            const Icon(Icons.arrow_drop_down, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTypeToggle(String label, bool isIncome, Color activeColor) {
     bool isSelected = _isIncome == isIncome;
     return GestureDetector(
@@ -189,7 +233,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         id: widget.record!.id,
         title: title,
         amount: amount,
-        date: widget.record!.date, // Keep original date or update it? Usually keep.
+        date: _selectedDate,
         isIncome: _isIncome,
       );
       context.read<MoneyRecordProvider>().updateTransaction(updatedRecord);
@@ -198,7 +242,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         id: const Uuid().v4(),
         title: title,
         amount: amount,
-        date: DateTime.now(),
+        date: _selectedDate,
         isIncome: _isIncome,
       );
       context.read<MoneyRecordProvider>().addTransaction(tx);
