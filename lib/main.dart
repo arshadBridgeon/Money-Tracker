@@ -10,6 +10,7 @@ import 'package:money_tracker/features/reminder/presentation/provider/reminder_p
 import 'package:money_tracker/general/models/transaction.dart';
 import 'package:money_tracker/general/models/user.dart';
 import 'package:money_tracker/general/models/bill_reminder.dart';
+import 'package:money_tracker/general/models/custom_week.dart';
 import 'package:money_tracker/features/dashboard/presentation/provider/settings_provider.dart';
 import 'package:money_tracker/features/dashboard/presentation/view/home_screen.dart';
 import 'package:money_tracker/features/auth/presentation/view/login_screen.dart';
@@ -27,6 +28,7 @@ void main() async {
   Hive.registerAdapter(MoneyRecordAdapter());
   Hive.registerAdapter(AppUserAdapter());
   Hive.registerAdapter(BillReminderAdapter());
+  Hive.registerAdapter(CustomWeekAdapter());
 
   // Note: We don't pre-open boxes here as they are user-specific now
 

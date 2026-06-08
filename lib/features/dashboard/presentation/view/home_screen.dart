@@ -28,6 +28,8 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  int? _selectedWeekFilter; // null for All Weeks, 1 to 5 for specific week
 
   @override
   void initState() {
@@ -173,51 +175,71 @@ class _HomeScreenState extends State<HomeScreen>
               // Fixed Top Card - ONLY TOTAL BALANCE
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: GlassmorphicContainer(
-                  width: double.infinity,
-                  height: 140, // More compact
-                  borderRadius: 24,
-                  blur: 25,
-                  alignment: Alignment.center,
-                  border: 2,
-                  linearGradient: LinearGradient(
-                    colors: [
-                      Colors.white.withAlpha(20),
-                      Colors.white.withAlpha(10),
-                    ],
-                  ),
-                  borderGradient: LinearGradient(
-                    colors: [
-                      Colors.white.withAlpha(100),
-                      Colors.blueGrey.withAlpha(100),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Total Available Balance',
-                        style: GoogleFonts.lexend(
-                          fontSize: 14,
-                          color: Colors.white70,
+                child: GestureDetector(
+                  onTap: () => _showAllTimeHistorySheet(context, provider),
+                  child: GlassmorphicContainer(
+                    width: double.infinity,
+                    height: 140, // More compact
+                    borderRadius: 24,
+                    blur: 25,
+                    alignment: Alignment.center,
+                    border: 2,
+                    linearGradient: LinearGradient(
+                      colors: [
+                        Colors.white.withAlpha(20),
+                        Colors.white.withAlpha(10),
+                      ],
+                    ),
+                    borderGradient: LinearGradient(
+                      colors: [
+                        Colors.white.withAlpha(100),
+                        Colors.blueGrey.withAlpha(100),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Total Available Balance',
+                              style: GoogleFonts.lexend(
+                                fontSize: 14,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              size: 14,
+                              color: Colors.white54,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '₹ ${provider.totalBalance.toStringAsFixed(0)}',
-                          style: GoogleFonts.lexend(
-                            fontSize: 38,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '₹ ${provider.totalBalance.toStringAsFixed(0)}',
+                            style: GoogleFonts.lexend(
+                              fontSize: 38,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
+
+              // Month & Week Filters
+              _buildMonthSelector(),
+              const SizedBox(height: 8),
+              _buildWeekChips(provider),
+              const SizedBox(height: 16),
 
               // --- SCROLLABLE BOTTOM SECTION WITH TABS ---
               Expanded(
@@ -281,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFilteredList(MoneyRecordProvider provider, bool showIncome) {
-    final filteredRecords = provider.getFilteredTransactions(showIncome);
+    final filteredRecords = _getFilteredAndSortedRecords(provider, showIncome);
 
     final Map<DateTime, List<MoneyRecord>> groupedByDate = {};
     for (var tx in filteredRecords) {
@@ -295,9 +317,7 @@ class _HomeScreenState extends State<HomeScreen>
     final List<DateTime> sortedDates = groupedByDate.keys.toList()
       ..sort((a, b) => b.compareTo(a));
 
-    final double tabTotal = showIncome
-        ? provider.totalIncome
-        : provider.totalExpense;
+    final double tabTotal = _calculateTabTotal(provider, showIncome);
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -548,9 +568,22 @@ class _HomeScreenState extends State<HomeScreen>
     BuildContext context,
     MoneyRecordProvider provider,
   ) {
-    double income = provider.totalIncome > 0 ? provider.totalIncome : 1.0;
-    double balance = provider.totalBalance;
-    double progress = (balance / income).clamp(0.0, 1.0);
+    final monthIncome = provider.transactions.where((tx) {
+      return tx.isIncome && 
+             _getTxYear(tx) == _selectedMonth.year && 
+             _getTxMonth(tx) == _selectedMonth.month;
+    }).fold(0.0, (sum, tx) => sum + tx.amount);
+    
+    final monthExpense = provider.transactions.where((tx) {
+      return !tx.isIncome && 
+             _getTxYear(tx) == _selectedMonth.year && 
+             _getTxMonth(tx) == _selectedMonth.month;
+    }).fold(0.0, (sum, tx) => sum + tx.amount);
+    
+    final monthBalance = monthIncome - monthExpense;
+
+    double income = monthIncome > 0 ? monthIncome : 1.0;
+    double progress = (monthBalance / income).clamp(0.0, 1.0);
 
     Color progressColor = Colors.tealAccent;
     if (progress < 0.3) {
@@ -581,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Income: ₹${provider.totalIncome.toStringAsFixed(0)}',
+                  'Income: ₹${monthIncome.toStringAsFixed(0)}',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 Text(
@@ -627,12 +660,490 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              '₹${balance.toStringAsFixed(0)} available for spending',
+              '₹${monthBalance.toStringAsFixed(0)} available for spending',
               style: const TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  int _getTxWeekNum(MoneyRecord tx) {
+    if (tx.weekId != null) {
+      final parts = tx.weekId!.split('_');
+      if (parts.length == 3) {
+        return int.tryParse(parts[2]) ?? MoneyRecordProvider.getWeekOfMonth(tx.date);
+      }
+    }
+    return MoneyRecordProvider.getWeekOfMonth(tx.date);
+  }
+
+  int _getTxMonth(MoneyRecord tx) {
+    if (tx.weekId != null) {
+      final parts = tx.weekId!.split('_');
+      if (parts.length == 3) {
+        return int.tryParse(parts[1]) ?? tx.date.month;
+      }
+    }
+    return tx.date.month;
+  }
+
+  int _getTxYear(MoneyRecord tx) {
+    if (tx.weekId != null) {
+      final parts = tx.weekId!.split('_');
+      if (parts.length == 3) {
+        return int.tryParse(parts[0]) ?? tx.date.year;
+      }
+    }
+    return tx.date.year;
+  }
+
+  List<MoneyRecord> _getFilteredAndSortedRecords(MoneyRecordProvider provider, bool showIncome) {
+    return provider.transactions.where((tx) {
+      if (tx.isIncome != showIncome) return false;
+      final txYear = _getTxYear(tx);
+      final txMonth = _getTxMonth(tx);
+      final txWeek = _getTxWeekNum(tx);
+      
+      final isSameMonth = txYear == _selectedMonth.year && txMonth == _selectedMonth.month;
+      if (!isSameMonth) return false;
+      
+      if (_selectedWeekFilter != null && txWeek != _selectedWeekFilter) return false;
+      
+      return true;
+    }).toList()..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  double _calculateTabTotal(MoneyRecordProvider provider, bool showIncome) {
+    final filtered = provider.transactions.where((tx) {
+      if (tx.isIncome != showIncome) return false;
+      final txYear = _getTxYear(tx);
+      final txMonth = _getTxMonth(tx);
+      final txWeek = _getTxWeekNum(tx);
+      
+      final isSameMonth = txYear == _selectedMonth.year && txMonth == _selectedMonth.month;
+      if (!isSameMonth) return false;
+      
+      if (_selectedWeekFilter != null && txWeek != _selectedWeekFilter) return false;
+      
+      return true;
+    });
+    return filtered.fold(0.0, (sum, tx) => sum + tx.amount);
+  }
+
+  Widget _buildMonthSelector() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+              });
+            },
+            icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70),
+          ),
+          Text(
+            DateFormat('MMMM yyyy').format(_selectedMonth),
+            style: GoogleFonts.lexend(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+              });
+            },
+            icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekChips(MoneyRecordProvider provider) {
+    return Container(
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: 6, // All Weeks + 5 Weeks
+        itemBuilder: (context, index) {
+          final isAll = index == 0;
+          final weekNum = index; // 1 to 5
+          final isSelected = isAll ? _selectedWeekFilter == null : _selectedWeekFilter == weekNum;
+          
+          final weekId = isAll ? "" : "${_selectedMonth.year}_${_selectedMonth.month}_$weekNum";
+          final displayName = isAll ? "All Weeks" : provider.getWeekName(weekId, weekNum);
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedWeekFilter = isAll ? null : weekNum;
+                });
+              },
+              child: GlassmorphicContainer(
+                width: isAll ? 100 : 155,
+                height: 40,
+                borderRadius: 12,
+                blur: isSelected ? 20 : 0,
+                alignment: Alignment.center,
+                border: isSelected ? 1.5 : 0.5,
+                linearGradient: LinearGradient(
+                  colors: isSelected
+                      ? [const Color(0xFF6366F1).withAlpha(100), const Color(0xFF6366F1).withAlpha(40)]
+                      : [Colors.white.withAlpha(15), Colors.white.withAlpha(5)],
+                ),
+                borderGradient: LinearGradient(
+                  colors: isSelected
+                      ? [const Color(0xFF6366F1).withAlpha(150), const Color(0xFF6366F1).withAlpha(50)]
+                      : [Colors.white24, Colors.white10],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          displayName,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.lexend(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.white : Colors.white70,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!isAll && isSelected) ...[
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _showRenameWeekDialog(context, provider, weekId, weekNum),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 14,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showRenameWeekDialog(BuildContext context, MoneyRecordProvider provider, String weekId, int weekNum) {
+    final controller = TextEditingController(text: provider.getWeekName(weekId, weekNum));
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Material(
+          type: MaterialType.transparency,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Center(
+              child: SingleChildScrollView(
+                child: GlassmorphicContainer(
+                  width: 320,
+                  height: 220,
+                  borderRadius: 24,
+                  blur: 20,
+                  alignment: Alignment.center,
+                  border: 2,
+                  linearGradient: LinearGradient(
+                    colors: [
+                      Colors.white.withAlpha(20),
+                      Colors.white.withAlpha(5),
+                    ],
+                  ),
+                  borderGradient: LinearGradient(
+                    colors: [
+                      Colors.white.withAlpha(100),
+                      const Color(0xFF6366F1).withAlpha(100),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Rename Week $weekNum',
+                          style: GoogleFonts.lexend(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: TextField(
+                            controller: controller,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Enter week name',
+                              hintStyle: TextStyle(color: Colors.white38),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white60),
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                if (controller.text.trim().isNotEmpty) {
+                                  provider.updateWeekName(
+                                    weekId,
+                                    controller.text.trim(),
+                                    weekNum,
+                                    _selectedMonth.month,
+                                    _selectedMonth.year,
+                                  );
+                                }
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF6366F1),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Save'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAllTimeHistorySheet(BuildContext context, MoneyRecordProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final allRecords = provider.transactions;
+        final totalIncome = provider.totalIncome;
+        final totalExpense = provider.totalExpense;
+        final totalBalance = provider.totalBalance;
+
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: GlassmorphicContainer(
+            width: double.infinity,
+            height: MediaQuery.of(context).size.height * 0.75,
+            borderRadius: 30,
+            blur: 30,
+            alignment: Alignment.center,
+            border: 2,
+            linearGradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white.withAlpha(25), Colors.white.withAlpha(5)],
+            ),
+            borderGradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white.withAlpha(100), Colors.blueGrey.withAlpha(100)],
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'All-Time History',
+                        style: GoogleFonts.lexend(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Summary Stats Card inside Sheet
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(10),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem('Income', '₹${totalIncome.toStringAsFixed(0)}', Colors.tealAccent),
+                        _buildStatItem('Expense', '₹${totalExpense.toStringAsFixed(0)}', Colors.redAccent),
+                        _buildStatItem('Balance', '₹${totalBalance.toStringAsFixed(0)}', Colors.white),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Transactions List
+                Expanded(
+                  child: allRecords.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No transactions found.',
+                            style: TextStyle(color: Colors.white38),
+                          ),
+                        )
+                      : ListView.builder(
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: allRecords.length,
+                          itemBuilder: (context, index) {
+                            final tx = allRecords[index];
+                            final weekNum = _getTxWeekNum(tx);
+                            final weekId = "${_getTxYear(tx)}_${_getTxMonth(tx)}_$weekNum";
+                            final weekName = provider.getWeekName(weekId, weekNum);
+                            
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(8),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: tx.isIncome 
+                                        ? Colors.tealAccent.withAlpha(30) 
+                                        : Colors.redAccent.withAlpha(30),
+                                    child: Icon(
+                                      tx.isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                                      color: tx.isIncome ? Colors.tealAccent : Colors.redAccent,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          tx.title,
+                                          style: GoogleFonts.lexend(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "${DateFormat('dd MMM yyyy').format(tx.date)} • $weekName",
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    "${tx.isIncome ? '+' : '-'} ₹${tx.amount.toStringAsFixed(0)}",
+                                    style: GoogleFonts.lexend(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: tx.isIncome ? Colors.tealAccent : Colors.redAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.lexend(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 

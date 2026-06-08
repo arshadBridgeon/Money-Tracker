@@ -20,6 +20,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
   final _amountController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   bool _isIncome = true;
+  int _selectedWeekNumber = 1;
 
   @override
   void initState() {
@@ -29,11 +30,24 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
       _amountController.text = widget.record!.amount.toString();
       _isIncome = widget.record!.isIncome;
       _selectedDate = widget.record!.date;
+      if (widget.record!.weekId != null) {
+        final parts = widget.record!.weekId!.split('_');
+        if (parts.length == 3) {
+          _selectedWeekNumber = int.tryParse(parts[2]) ?? MoneyRecordProvider.getWeekOfMonth(_selectedDate);
+        } else {
+          _selectedWeekNumber = MoneyRecordProvider.getWeekOfMonth(_selectedDate);
+        }
+      } else {
+        _selectedWeekNumber = MoneyRecordProvider.getWeekOfMonth(_selectedDate);
+      }
+    } else {
+      _selectedWeekNumber = MoneyRecordProvider.getWeekOfMonth(_selectedDate);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<MoneyRecordProvider>();
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -42,7 +56,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: GlassmorphicContainer(
           width: double.infinity,
-          height: 480, // Dynamic height or slightly larger base
+          height: 540, // Expanded height to fit Week Selector
           borderRadius: 30,
           blur: 30,
           alignment: Alignment.center,
@@ -100,6 +114,10 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
 
                   // Date Picker
                   _buildDatePicker(),
+                  const SizedBox(height: 16),
+
+                  // Week Selector
+                  _buildWeekSelector(provider),
                   const SizedBox(height: 24),
                   
                   // Income/Expense Toggle
@@ -168,6 +186,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         if (picked != null && picked != _selectedDate) {
           setState(() {
             _selectedDate = picked;
+            _selectedWeekNumber = MoneyRecordProvider.getWeekOfMonth(picked);
           });
         }
       },
@@ -191,6 +210,72 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         ),
       ),
     );
+  }
+
+  Widget _buildWeekSelector(MoneyRecordProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(12),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedWeekNumber,
+          isExpanded: true,
+          dropdownColor: const Color(0xFF1E293B),
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
+          style: const TextStyle(color: Colors.white),
+          selectedItemBuilder: (BuildContext context) {
+            return [1, 2, 3, 4, 5].map<Widget>((int weekNum) {
+              return Row(
+                children: [
+                  const Icon(Icons.calendar_view_week_rounded, color: Colors.white54),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _getWeekDisplayName(weekNum, provider),
+                      style: const TextStyle(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              );
+            }).toList();
+          },
+          items: [1, 2, 3, 4, 5].map<DropdownMenuItem<int>>((int weekNum) {
+            return DropdownMenuItem<int>(
+              value: weekNum,
+              child: Text(
+                _getWeekDisplayName(weekNum, provider),
+                style: const TextStyle(color: Colors.white),
+              ),
+            );
+          }).toList(),
+          onChanged: (int? newValue) {
+            if (newValue != null) {
+              setState(() {
+                _selectedWeekNumber = newValue;
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  String _getWeekDisplayName(int weekNum, MoneyRecordProvider provider) {
+    final weekId = "${_selectedDate.year}_${_selectedDate.month}_$weekNum";
+    final customName = provider.getWeekName(weekId, weekNum);
+    
+    String dateRange = "";
+    if (weekNum == 1) dateRange = "1-7";
+    else if (weekNum == 2) dateRange = "8-14";
+    else if (weekNum == 3) dateRange = "15-21";
+    else if (weekNum == 4) dateRange = "22-28";
+    else dateRange = "29+";
+    
+    return "$customName ($dateRange ${DateFormat('MMM').format(_selectedDate)})";
   }
 
   Widget _buildTypeToggle(String label, bool isIncome, Color activeColor) {
@@ -227,6 +312,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
     if (title.isEmpty || amountText.isEmpty) return;
     
     final amount = double.tryParse(amountText) ?? 0.0;
+    final weekId = "${_selectedDate.year}_${_selectedDate.month}_$_selectedWeekNumber";
     
     if (widget.record != null) {
       final updatedRecord = MoneyRecord(
@@ -235,6 +321,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         amount: amount,
         date: _selectedDate,
         isIncome: _isIncome,
+        weekId: weekId,
       );
       context.read<MoneyRecordProvider>().updateTransaction(updatedRecord);
     } else {
@@ -244,6 +331,7 @@ class _AddRecordSheetState extends State<AddRecordSheet> {
         amount: amount,
         date: _selectedDate,
         isIncome: _isIncome,
+        weekId: weekId,
       );
       context.read<MoneyRecordProvider>().addTransaction(tx);
     }

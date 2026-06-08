@@ -3,11 +3,15 @@ import 'package:hive/hive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:money_tracker/general/models/transaction.dart';
+import 'package:money_tracker/general/models/custom_week.dart';
 
 class MoneyRecordProvider with ChangeNotifier {
   List<MoneyRecord> _records = [];
+  List<CustomWeek> _customWeeks = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  List<CustomWeek> get customWeeks => _customWeeks;
 
   // Pagination State
   int _incomeDisplayLimit = 10;
@@ -102,6 +106,7 @@ class MoneyRecordProvider with ChangeNotifier {
     // Fetch initial pages from Firestore to sync latest (background)
     await _fetchInitialPage(true);
     await _fetchInitialPage(false);
+    await fetchCustomWeeks();
   }
 
   Future<void> _fetchInitialPage(bool isIncome) async {
@@ -213,6 +218,7 @@ class MoneyRecordProvider with ChangeNotifier {
       amount: (data['amount'] as num).toDouble(),
       date: (data['date'] as Timestamp).toDate(),
       isIncome: data['isIncome'] as bool,
+      weekId: data['weekId'] as String?,
     );
   }
 
@@ -233,6 +239,7 @@ class MoneyRecordProvider with ChangeNotifier {
             'amount': tx.amount,
             'date': tx.date,
             'isIncome': tx.isIncome,
+            'weekId': tx.weekId,
           });
     } catch (e) {
       debugPrint('Firestore sync error: $e');
@@ -284,6 +291,7 @@ class MoneyRecordProvider with ChangeNotifier {
         'amount': updatedRecord.amount,
         'date': updatedRecord.date,
         'isIncome': updatedRecord.isIncome,
+        'weekId': updatedRecord.weekId,
       });
     } catch (e) {
       debugPrint('Firestore update error: $e');
@@ -308,7 +316,13 @@ class MoneyRecordProvider with ChangeNotifier {
   Future<void> clearLocalCache() async {
     final box = await Hive.openBox<MoneyRecord>(_userBoxName);
     await box.clear();
+    
+    final weekBoxName = 'custom_weeks_${_auth.currentUser?.uid ?? 'guest'}';
+    final weekBox = await Hive.openBox<CustomWeek>(weekBoxName);
+    await weekBox.clear();
+    
     _records = [];
+    _customWeeks = [];
     _incomeDisplayLimit = 10;
     _expenseDisplayLimit = 10;
     _lastIncomeVisible = null;
@@ -316,5 +330,98 @@ class MoneyRecordProvider with ChangeNotifier {
     _hasMoreIncome = true;
     _hasMoreExpense = true;
     notifyListeners();
+  }
+
+  Future<void> fetchCustomWeeks() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final boxName = 'custom_weeks_${user.uid}';
+    final box = await Hive.openBox<CustomWeek>(boxName);
+    _customWeeks = box.values.toList();
+    notifyListeners();
+
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('weeks')
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final cw = CustomWeek(
+          id: doc.id,
+          name: data['name'] as String,
+          weekNumber: (data['weekNumber'] as num).toInt(),
+          month: (data['month'] as num).toInt(),
+          year: (data['year'] as num).toInt(),
+        );
+        await box.put(cw.id, cw);
+      }
+      _customWeeks = box.values.toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching weeks: $e');
+    }
+  }
+
+  String getWeekName(String weekId, int weekNumber) {
+    final cwIndex = _customWeeks.indexWhere((w) => w.id == weekId);
+    if (cwIndex >= 0) {
+      return _customWeeks[cwIndex].name;
+    }
+    return 'Week $weekNumber';
+  }
+
+  Future<void> updateWeekName(String weekId, String newName, int weekNumber, int month, int year) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final boxName = 'custom_weeks_${user.uid}';
+    final box = await Hive.openBox<CustomWeek>(boxName);
+    
+    final customWeek = CustomWeek(
+      id: weekId,
+      name: newName,
+      weekNumber: weekNumber,
+      month: month,
+      year: year,
+    );
+
+    await box.put(weekId, customWeek);
+    
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('weeks')
+          .doc(weekId)
+          .set({
+            'name': newName,
+            'weekNumber': weekNumber,
+            'month': month,
+            'year': year,
+          });
+    } catch (e) {
+      debugPrint('Firestore week sync error: $e');
+    }
+
+    final index = _customWeeks.indexWhere((w) => w.id == weekId);
+    if (index >= 0) {
+      _customWeeks[index] = customWeek;
+    } else {
+      _customWeeks.add(customWeek);
+    }
+    notifyListeners();
+  }
+
+  static int getWeekOfMonth(DateTime date) {
+    int day = date.day;
+    if (day <= 7) return 1;
+    if (day <= 14) return 2;
+    if (day <= 21) return 3;
+    if (day <= 28) return 4;
+    return 5;
   }
 }
