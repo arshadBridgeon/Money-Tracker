@@ -48,6 +48,44 @@ class _HomeScreenState extends State<HomeScreen>
     final auth = context.watch<AuthProvider>();
     final provider = context.watch<MoneyRecordProvider>();
 
+    // Calculate active week's expense for the top card
+    double activeWeekExpense = 0.0;
+    String activeWeekExpenseLabel = '';
+
+    if (_selectedWeekFilter != null) {
+      final weekId = "${_selectedMonth.year}_${_selectedMonth.month}_$_selectedWeekFilter";
+      final weekName = provider.getWeekName(weekId, _selectedWeekFilter!);
+      activeWeekExpenseLabel = "$weekName Expense";
+      activeWeekExpense = provider.transactions.where((tx) {
+        return !tx.isIncome &&
+            _getTxYear(tx) == _selectedMonth.year &&
+            _getTxMonth(tx) == _selectedMonth.month &&
+            _getTxWeekNum(tx) == _selectedWeekFilter;
+      }).fold(0.0, (sum, tx) => sum + tx.amount);
+    } else {
+      final now = DateTime.now();
+      final isCurrentMonth = _selectedMonth.year == now.year && _selectedMonth.month == now.month;
+      if (isCurrentMonth) {
+        final currentWeek = MoneyRecordProvider.getWeekOfMonth(now);
+        final weekId = "${now.year}_${now.month}_$currentWeek";
+        final weekName = provider.getWeekName(weekId, currentWeek);
+        activeWeekExpenseLabel = "$weekName Expense (This Week)";
+        activeWeekExpense = provider.transactions.where((tx) {
+          return !tx.isIncome &&
+              _getTxYear(tx) == now.year &&
+              _getTxMonth(tx) == now.month &&
+              _getTxWeekNum(tx) == currentWeek;
+        }).fold(0.0, (sum, tx) => sum + tx.amount);
+      } else {
+        activeWeekExpenseLabel = "Monthly Expense";
+        activeWeekExpense = provider.transactions.where((tx) {
+          return !tx.isIncome &&
+              _getTxYear(tx) == _selectedMonth.year &&
+              _getTxMonth(tx) == _selectedMonth.month;
+        }).fold(0.0, (sum, tx) => sum + tx.amount);
+      }
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildDrawer(context, auth),
@@ -172,14 +210,14 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
 
-              // Fixed Top Card - ONLY TOTAL BALANCE
+              // Fixed Top Card - TOTAL BALANCE & SELECTED/THIS WEEK EXPENSE
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: GestureDetector(
                   onTap: () => _showAllTimeHistorySheet(context, provider),
                   child: GlassmorphicContainer(
                     width: double.infinity,
-                    height: 140, // More compact
+                    height: 170, // Increased height to accommodate the expense row
                     borderRadius: 24,
                     blur: 25,
                     alignment: Alignment.center,
@@ -217,17 +255,50 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
                             '₹ ${provider.totalBalance.toStringAsFixed(0)}',
                             style: GoogleFonts.lexend(
-                              fontSize: 38,
+                              fontSize: 34,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          height: 1,
+                          width: 120,
+                          color: Colors.white12,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_upward_rounded,
+                              size: 15,
+                              color: Colors.redAccent.withAlpha(200),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$activeWeekExpenseLabel: ',
+                              style: GoogleFonts.lexend(
+                                fontSize: 12,
+                                color: Colors.white60,
+                              ),
+                            ),
+                            Text(
+                              '₹ ${activeWeekExpense.toStringAsFixed(0)}',
+                              style: GoogleFonts.lexend(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.redAccent.withAlpha(220),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -768,8 +839,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildWeekChips(MoneyRecordProvider provider) {
-    return Container(
-      height: 48,
+    return SizedBox(
+      height: 95, // Taller container for the cards
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -782,8 +853,40 @@ class _HomeScreenState extends State<HomeScreen>
           final weekId = isAll ? "" : "${_selectedMonth.year}_${_selectedMonth.month}_$weekNum";
           final displayName = isAll ? "All Weeks" : provider.getWeekName(weekId, weekNum);
 
+          // Calculate income and expense for this card
+          double income = 0.0;
+          double expense = 0.0;
+
+          if (isAll) {
+            income = provider.transactions.where((tx) {
+              return tx.isIncome &&
+                  _getTxYear(tx) == _selectedMonth.year &&
+                  _getTxMonth(tx) == _selectedMonth.month;
+            }).fold(0.0, (sum, tx) => sum + tx.amount);
+
+            expense = provider.transactions.where((tx) {
+              return !tx.isIncome &&
+                  _getTxYear(tx) == _selectedMonth.year &&
+                  _getTxMonth(tx) == _selectedMonth.month;
+            }).fold(0.0, (sum, tx) => sum + tx.amount);
+          } else {
+            income = provider.transactions.where((tx) {
+              return tx.isIncome &&
+                  _getTxYear(tx) == _selectedMonth.year &&
+                  _getTxMonth(tx) == _selectedMonth.month &&
+                  _getTxWeekNum(tx) == weekNum;
+            }).fold(0.0, (sum, tx) => sum + tx.amount);
+
+            expense = provider.transactions.where((tx) {
+              return !tx.isIncome &&
+                  _getTxYear(tx) == _selectedMonth.year &&
+                  _getTxMonth(tx) == _selectedMonth.month &&
+                  _getTxWeekNum(tx) == weekNum;
+            }).fold(0.0, (sum, tx) => sum + tx.amount);
+          }
+
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: GestureDetector(
               onTap: () {
                 setState(() {
@@ -791,16 +894,18 @@ class _HomeScreenState extends State<HomeScreen>
                 });
               },
               child: GlassmorphicContainer(
-                width: isAll ? 100 : 155,
-                height: 40,
-                borderRadius: 12,
+                width: 150,
+                height: 85,
+                borderRadius: 16,
                 blur: isSelected ? 20 : 0,
                 alignment: Alignment.center,
                 border: isSelected ? 1.5 : 0.5,
                 linearGradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: isSelected
-                      ? [const Color(0xFF6366F1).withAlpha(100), const Color(0xFF6366F1).withAlpha(40)]
-                      : [Colors.white.withAlpha(15), Colors.white.withAlpha(5)],
+                      ? [const Color(0xFF6366F1).withAlpha(80), const Color(0xFF6366F1).withAlpha(30)]
+                      : [Colors.white.withAlpha(12), Colors.white.withAlpha(5)],
                 ),
                 borderGradient: LinearGradient(
                   colors: isSelected
@@ -808,33 +913,96 @@ class _HomeScreenState extends State<HomeScreen>
                       : [Colors.white24, Colors.white10],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Text(
-                          displayName,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.lexend(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.white : Colors.white70,
+                      // Week Name & Edit Button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              style: GoogleFonts.lexend(
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                color: isSelected ? Colors.white : Colors.white70,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          if (!isAll && isSelected)
+                            GestureDetector(
+                              onTap: () => _showRenameWeekDialog(context, provider, weekId, weekNum),
+                              child: const Icon(
+                                Icons.edit_rounded,
+                                size: 13,
+                                color: Colors.white70,
+                              ),
+                            ),
+                        ],
                       ),
-                      if (!isAll && isSelected) ...[
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () => _showRenameWeekDialog(context, provider, weekId, weekNum),
-                          child: const Icon(
-                            Icons.edit_rounded,
-                            size: 14,
-                            color: Colors.white70,
+                      const SizedBox(height: 4),
+                      // Income info
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 11,
+                            color: Colors.tealAccent,
                           ),
-                        ),
-                      ]
+                          const SizedBox(width: 4),
+                          Text(
+                            'Inc: ',
+                            style: GoogleFonts.lexend(
+                              fontSize: 10,
+                              color: Colors.white38,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '₹${income.toStringAsFixed(0)}',
+                              style: GoogleFonts.lexend(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.tealAccent,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Expense info
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 11,
+                            color: Colors.redAccent,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Exp: ',
+                            style: GoogleFonts.lexend(
+                              fontSize: 10,
+                              color: Colors.white38,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '₹${expense.toStringAsFixed(0)}',
+                              style: GoogleFonts.lexend(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.redAccent,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
