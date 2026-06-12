@@ -423,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildBudgetTracker(context, provider),
+                  _buildBudgetTracker(context, provider, showIncome),
                   const SizedBox(height: 24),
                   Text(
                     showIncome ? 'Income History' : 'Expense History',
@@ -638,6 +638,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildBudgetTracker(
     BuildContext context,
     MoneyRecordProvider provider,
+    bool showIncome,
   ) {
     final monthIncome = provider.transactions.where((tx) {
       return tx.isIncome && 
@@ -654,13 +655,28 @@ class _HomeScreenState extends State<HomeScreen>
     final monthBalance = monthIncome - monthExpense;
 
     double income = monthIncome > 0 ? monthIncome : 1.0;
-    double progress = (monthBalance / income).clamp(0.0, 1.0);
+    
+    // If showIncome is true, progress is the remaining balance percentage.
+    // If showIncome is false, progress is the spent percentage of the income.
+    double progress = showIncome 
+        ? (monthBalance / income).clamp(0.0, 1.0)
+        : (monthExpense / income).clamp(0.0, 1.0);
 
-    Color progressColor = Colors.tealAccent;
-    if (progress < 0.3) {
-      progressColor = Colors.redAccent;
-    } else if (progress < 0.5) {
-      progressColor = Colors.orangeAccent;
+    Color progressColor = showIncome ? Colors.tealAccent : Colors.redAccent;
+    if (showIncome) {
+      if (progress < 0.3) {
+        progressColor = Colors.redAccent;
+      } else if (progress < 0.5) {
+        progressColor = Colors.orangeAccent;
+      }
+    } else {
+      if (progress > 0.8) {
+        progressColor = Colors.redAccent;
+      } else if (progress > 0.5) {
+        progressColor = Colors.orangeAccent;
+      } else {
+        progressColor = Colors.tealAccent;
+      }
     }
 
     return GlassmorphicContainer(
@@ -685,11 +701,15 @@ class _HomeScreenState extends State<HomeScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Income: ₹${monthIncome.toStringAsFixed(0)}',
+                  showIncome 
+                      ? 'Income: ₹${monthIncome.toStringAsFixed(0)}'
+                      : 'Expense: ₹${monthExpense.toStringAsFixed(0)}',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 Text(
-                  '${(progress * 100).toInt()}% left',
+                  showIncome 
+                      ? '${(progress * 100).toInt()}% left'
+                      : '${(progress * 100).toInt()}% spent',
                   style: TextStyle(
                     color: progressColor,
                     fontSize: 13,
@@ -731,7 +751,9 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              '₹${monthBalance.toStringAsFixed(0)} available for spending',
+              showIncome 
+                  ? '₹${monthBalance.toStringAsFixed(0)} available for spending'
+                  : '₹${monthExpense.toStringAsFixed(0)} spent out of ₹${monthIncome.toStringAsFixed(0)}',
               style: const TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ],
@@ -945,17 +967,17 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // Income info
+                      // Subtracted balance info
                       Row(
                         children: [
-                          const Icon(
-                            Icons.arrow_downward_rounded,
+                          Icon(
+                            (income - expense) >= 0 ? Icons.account_balance_wallet_rounded : Icons.warning_amber_rounded,
                             size: 11,
-                            color: Colors.tealAccent,
+                            color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Inc: ',
+                            'Bal: ',
                             style: GoogleFonts.lexend(
                               fontSize: 10,
                               color: Colors.white38,
@@ -963,40 +985,45 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                           Expanded(
                             child: Text(
-                              '₹${income.toStringAsFixed(0)}',
+                              '${(income - expense) < 0 ? '-' : ''}₹${(income - expense).abs().toStringAsFixed(0)}',
                               style: GoogleFonts.lexend(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.tealAccent,
+                                fontWeight: FontWeight.bold,
+                                color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      // Expense info
+                      // Small Details Row (Inc / Exp)
                       Row(
                         children: [
-                          const Icon(
-                            Icons.arrow_upward_rounded,
-                            size: 11,
-                            color: Colors.redAccent,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Exp: ',
-                            style: GoogleFonts.lexend(
-                              fontSize: 10,
-                              color: Colors.white38,
-                            ),
-                          ),
                           Expanded(
-                            child: Text(
-                              '₹${expense.toStringAsFixed(0)}',
-                              style: GoogleFonts.lexend(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.redAccent,
+                            child: RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.lexend(
+                                  fontSize: 9,
+                                  color: Colors.white38,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'In: '),
+                                  TextSpan(
+                                    text: '₹${income.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: Colors.tealAccent,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' | Ex: '),
+                                  TextSpan(
+                                    text: '₹${expense.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1122,6 +1149,161 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildWeeklyBreakdownCarousel(BuildContext context, MoneyRecordProvider provider) {
+    final List<Widget> cards = [];
+    final monthName = DateFormat('MMMM yyyy').format(_selectedMonth);
+    
+    for (int weekNum = 1; weekNum <= 5; weekNum++) {
+      final weekId = "${_selectedMonth.year}_${_selectedMonth.month}_$weekNum";
+      final weekName = provider.getWeekName(weekId, weekNum);
+
+      final weekIncome = provider.transactions.where((tx) {
+        return tx.isIncome &&
+            _getTxYear(tx) == _selectedMonth.year &&
+            _getTxMonth(tx) == _selectedMonth.month &&
+            _getTxWeekNum(tx) == weekNum;
+      }).fold(0.0, (sum, tx) => sum + tx.amount);
+
+      final weekExpense = provider.transactions.where((tx) {
+        return !tx.isIncome &&
+            _getTxYear(tx) == _selectedMonth.year &&
+            _getTxMonth(tx) == _selectedMonth.month &&
+            _getTxWeekNum(tx) == weekNum;
+      }).fold(0.0, (sum, tx) => sum + tx.amount);
+
+      final weekBalance = weekIncome - weekExpense;
+
+      cards.add(
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GlassmorphicContainer(
+            width: 180,
+            height: 95,
+            borderRadius: 16,
+            blur: 15,
+            alignment: Alignment.center,
+            border: 1,
+            linearGradient: LinearGradient(
+              colors: [Colors.white.withAlpha(12), Colors.white.withAlpha(6)],
+            ),
+            borderGradient: LinearGradient(
+              colors: [Colors.white24, Colors.white10],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    weekName,
+                    style: GoogleFonts.lexend(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        'Bal: ',
+                        style: TextStyle(fontSize: 11, color: Colors.white54),
+                      ),
+                      Text(
+                        '${weekBalance < 0 ? '-' : ''}₹${weekBalance.abs().toStringAsFixed(0)}',
+                        style: GoogleFonts.lexend(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: weekBalance >= 0 ? Colors.tealAccent : Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.arrow_downward_rounded, size: 10, color: Colors.tealAccent),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(fontSize: 10, color: Colors.white70),
+                                children: [
+                                  const TextSpan(text: 'Inc: '),
+                                  TextSpan(
+                                    text: '₹${weekIncome.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.arrow_upward_rounded, size: 10, color: Colors.redAccent),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(fontSize: 10, color: Colors.white70),
+                                children: [
+                                  const TextSpan(text: 'Exp: '),
+                                  TextSpan(
+                                    text: '₹${weekExpense.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Weekly Breakdown ($monthName)',
+            style: GoogleFonts.lexend(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 105,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            physics: const BouncingScrollPhysics(),
+            children: cards,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showAllTimeHistorySheet(BuildContext context, MoneyRecordProvider provider) {
     showModalBottomSheet(
       context: context,
@@ -1206,6 +1388,10 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
+                const SizedBox(height: 20),
+                
+                // Weekly Breakdown Carousel
+                _buildWeeklyBreakdownCarousel(context, provider),
                 const SizedBox(height: 20),
                 
                 // Transactions List
