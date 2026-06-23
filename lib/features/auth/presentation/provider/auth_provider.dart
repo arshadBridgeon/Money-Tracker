@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:money_tracker/general/models/user.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -12,10 +14,12 @@ class AuthProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   bool _isLoading = false;
+  String? _profilePhotoUrl;
 
   AppUser? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
+  String? get profilePhotoUrl => _profilePhotoUrl;
 
   Future<void> init() async {
     final box = await Hive.openBox<AppUser>(userBoxName);
@@ -32,6 +36,74 @@ class AuthProvider with ChangeNotifier {
         );
       }
       _isAuthenticated = true;
+      await _loadProfilePhoto();
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadProfilePhoto() async {
+    try {
+      // Load local photo path from Hive first
+      final box = await Hive.openBox<AppUser>(userBoxName);
+      if (box.isNotEmpty) {
+        final localUser = box.getAt(0);
+        if (localUser?.localPhotoPath != null) {
+          _profilePhotoUrl = localUser!.localPhotoPath;
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading profile photo: $e');
+    }
+  }
+
+  /// Save profile photo locally and update Hive (No Firebase Storage)
+  Future<void> uploadProfilePhoto(File imageFile) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Get persistent documents directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final localPath = '${appDir.path}/profile_${firebaseUser.uid}.jpg';
+      final savedFile = File(localPath);
+
+      // Delete existing if any
+      if (await savedFile.exists()) {
+        await savedFile.delete();
+      }
+
+      // Copy picked file to documents directory
+      await imageFile.copy(localPath);
+      await FileImage(File(localPath)).evict();
+
+      // Save local path in Hive AppUser model
+      final box = await Hive.openBox<AppUser>(userBoxName);
+      if (box.isNotEmpty) {
+        final localUser = box.getAt(0);
+        if (localUser != null) {
+          final updatedUser = AppUser(
+            id: localUser.id,
+            name: localUser.name,
+            phoneNumber: localUser.phoneNumber,
+            initialBalance: localUser.initialBalance,
+            joinedDate: localUser.joinedDate,
+            localPhotoPath: localPath,
+          );
+          await box.putAt(0, updatedUser);
+          _currentUser = updatedUser;
+        }
+      }
+
+      _profilePhotoUrl = localPath;
+    } catch (e) {
+      debugPrint('Error saving local profile photo: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -121,6 +193,7 @@ class AuthProvider with ChangeNotifier {
     _currentUser = user;
     _isAuthenticated = true;
     _isLoading = false;
+    await _loadProfilePhoto();
     notifyListeners();
   }
 
@@ -234,6 +307,7 @@ class AuthProvider with ChangeNotifier {
     await box.clear();
     _currentUser = null;
     _isAuthenticated = false;
+    _profilePhotoUrl = null;
     notifyListeners();
   }
 }

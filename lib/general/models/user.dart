@@ -14,6 +14,8 @@ class AppUser extends HiveObject {
   final double initialBalance;
   @HiveField(4)
   final DateTime joinedDate;
+  @HiveField(5)
+  final String? localPhotoPath;
 
   AppUser({
     required this.id,
@@ -21,5 +23,6 @@ class AppUser extends HiveObject {
     required this.phoneNumber,
     required this.initialBalance,
     required this.joinedDate,
+    this.localPhotoPath,
   });
 }

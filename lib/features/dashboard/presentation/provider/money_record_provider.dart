@@ -11,6 +11,13 @@ class MoneyRecordProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // True total balance fetched from ALL Firestore records (not paginated)
+  double _trueTotalIncome = 0.0;
+  double _trueTotalExpense = 0.0;
+  bool _isTotalBalanceLoaded = false;
+
+  bool get isTotalBalanceLoaded => _isTotalBalanceLoaded;
+
   List<CustomWeek> get customWeeks => _customWeeks;
 
   // Pagination State
@@ -47,40 +54,79 @@ class MoneyRecordProvider with ChangeNotifier {
   String get _userBoxName =>
       'transactions_${_auth.currentUser?.uid ?? 'guest'}';
 
-  double get totalBalance {
-    double total = 0.0;
-    for (var tx in _records) {
-      if (tx.isIncome) {
-        total += tx.amount;
-      } else {
-        total -= tx.amount;
+  // Returns the TRUE total balance from ALL transactions (Firestore aggregated)
+  double get totalBalance => _trueTotalIncome - _trueTotalExpense;
+
+  // Fetch the true total balance by summing ALL transactions in Firestore
+  Future<void> _fetchTrueTotalBalance() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // Fetch all income sum
+      double incomeSum = 0.0;
+      double expenseSum = 0.0;
+
+      // Stream through all income records to calculate sum
+      final incomeSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .where('isIncome', isEqualTo: true)
+          .get();
+
+      for (var doc in incomeSnapshot.docs) {
+        final data = doc.data();
+        incomeSum += (data['amount'] as num).toDouble();
       }
+
+      // Stream through all expense records to calculate sum
+      final expenseSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .where('isIncome', isEqualTo: false)
+          .get();
+
+      for (var doc in expenseSnapshot.docs) {
+        final data = doc.data();
+        expenseSum += (data['amount'] as num).toDouble();
+      }
+
+      _trueTotalIncome = incomeSum;
+      _trueTotalExpense = expenseSum;
+      _isTotalBalanceLoaded = true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching true total balance: $e');
+      // Fallback: use locally cached records if Firestore fetch fails
+      double fallbackIncome = 0.0;
+      double fallbackExpense = 0.0;
+      for (var tx in _records) {
+        if (tx.isIncome) {
+          fallbackIncome += tx.amount;
+        } else {
+          fallbackExpense += tx.amount;
+        }
+      }
+      _trueTotalIncome = fallbackIncome;
+      _trueTotalExpense = fallbackExpense;
+      _isTotalBalanceLoaded = true;
+      notifyListeners();
     }
-    return total;
   }
 
-  double get totalIncome {
-    double total = 0.0;
-    for (var tx in _records) {
-      if (tx.isIncome) {
-        total += tx.amount;
-      }
-    }
-    return total;
-  }
+  // Returns the TRUE total income from ALL transactions (Firestore aggregated)
+  double get totalIncome => _trueTotalIncome;
 
-  double get totalExpense {
-    double total = 0.0;
-    for (var tx in _records) {
-      if (!tx.isIncome) {
-        total += tx.amount;
-      }
-    }
-    return total;
-  }
+  // Returns the TRUE total expense from ALL transactions (Firestore aggregated)
+  double get totalExpense => _trueTotalExpense;
 
   Future<void> refreshForNewUser() async {
     _records = [];
+    _trueTotalIncome = 0.0;
+    _trueTotalExpense = 0.0;
+    _isTotalBalanceLoaded = false;
     _incomeDisplayLimit = 10;
     _expenseDisplayLimit = 10;
     _lastIncomeVisible = null;
@@ -102,6 +148,9 @@ class MoneyRecordProvider with ChangeNotifier {
     _incomeDisplayLimit = 10;
     _expenseDisplayLimit = 10;
     notifyListeners();
+
+    // Fetch true total balance from ALL Firestore records (runs first for accuracy)
+    await _fetchTrueTotalBalance();
 
     // Fetch initial pages from Firestore to sync latest (background)
     await _fetchInitialPage(true);
@@ -245,6 +294,13 @@ class MoneyRecordProvider with ChangeNotifier {
       debugPrint('Firestore sync error: $e');
     }
 
+    // Update true total balance immediately
+    if (tx.isIncome) {
+      _trueTotalIncome += tx.amount;
+    } else {
+      _trueTotalExpense += tx.amount;
+    }
+
     // Add to local list and sort to maintain chronological order
     _records.add(tx);
     _records.sort((a, b) => b.date.compareTo(a.date));
@@ -268,6 +324,13 @@ class MoneyRecordProvider with ChangeNotifier {
       }
     }
 
+    // Update true total balance immediately
+    if (txToDelete.isIncome) {
+      _trueTotalIncome -= txToDelete.amount;
+    } else {
+      _trueTotalExpense -= txToDelete.amount;
+    }
+
     // Deleting from local for UI
     await box.delete(txToDelete.id);
     _updateRecordsFromBox(box);
@@ -276,6 +339,12 @@ class MoneyRecordProvider with ChangeNotifier {
 
   Future<void> updateTransaction(MoneyRecord updatedRecord) async {
     if (_auth.currentUser == null) return;
+
+    // Find old record to adjust total balance
+    final oldRecord = _records.firstWhere(
+      (r) => r.id == updatedRecord.id,
+      orElse: () => updatedRecord,
+    );
 
     final box = await Hive.openBox<MoneyRecord>(_userBoxName);
     await box.put(updatedRecord.id, updatedRecord);
@@ -295,6 +364,18 @@ class MoneyRecordProvider with ChangeNotifier {
       });
     } catch (e) {
       debugPrint('Firestore update error: $e');
+    }
+
+    // Adjust true total balance: remove old, add new
+    if (oldRecord.isIncome) {
+      _trueTotalIncome -= oldRecord.amount;
+    } else {
+      _trueTotalExpense -= oldRecord.amount;
+    }
+    if (updatedRecord.isIncome) {
+      _trueTotalIncome += updatedRecord.amount;
+    } else {
+      _trueTotalExpense += updatedRecord.amount;
     }
 
     _updateRecordsFromBox(box);

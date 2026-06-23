@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:money_tracker/features/auth/presentation/provider/auth_provider.dart';
@@ -35,12 +37,152 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkNewFeatureOnboarding();
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkNewFeatureOnboarding() async {
+    final auth = context.read<AuthProvider>();
+    final hasPhoto = auth.profilePhotoUrl != null && auth.profilePhotoUrl!.isNotEmpty;
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('has_seen_profile_photo_onboarding') ?? false;
+    
+    if (!hasSeen && !hasPhoto) {
+      if (!mounted) return;
+      _showNewFeatureDialog();
+    }
+  }
+
+  void _showNewFeatureDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withAlpha(40), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(127),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withAlpha(30),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF6366F1).withAlpha(100), width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.add_a_photo_rounded,
+                      color: Color(0xFF6366F1),
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Profile Photo Available! 📸',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.lexend(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Customize your account by uploading a profile photo. Tap the avatar icon on the dashboard anytime to change it!',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      color: Colors.white70,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setBool('has_seen_profile_photo_onboarding', true);
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(
+                            'Later',
+                            style: GoogleFonts.lexend(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setBool('has_seen_profile_photo_onboarding', true);
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ProfileSettingsScreen(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6366F1),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(
+                            'Add Now',
+                            style: GoogleFonts.lexend(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -206,6 +348,18 @@ class _HomeScreenState extends State<HomeScreen>
                         );
                       },
                     ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProfileSettingsScreen(),
+                          ),
+                        );
+                      },
+                      child: _buildGlassAvatar(context, auth.currentUser?.name ?? 'User', size: 36),
+                    ),
                   ],
                 ),
               ),
@@ -217,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onTap: () => _showAllTimeHistorySheet(context, provider),
                   child: GlassmorphicContainer(
                     width: double.infinity,
-                    height: 170, // Increased height to accommodate the expense row
+                    height: 205, // Increased height to accommodate the expense row + caption
                     borderRadius: 24,
                     blur: 25,
                     alignment: Alignment.center,
@@ -256,18 +410,50 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                         const SizedBox(height: 4),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            '₹ ${provider.totalBalance.toStringAsFixed(0)}',
-                            style: GoogleFonts.lexend(
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                        provider.isTotalBalanceLoaded
+                            ? FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '₹ ${provider.totalBalance.toStringAsFixed(0)}',
+                                  style: GoogleFonts.lexend(
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox(
+                                height: 38,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white54,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        const SizedBox(height: 6),
+                        // Motivational Caption
+                        if (provider.isTotalBalanceLoaded)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              _getMotivationalCaption(
+                                provider.totalBalance,
+                                auth.currentUser?.name ?? 'User',
+                              ),
+                              style: GoogleFonts.lexend(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: _getMotivationalColor(provider.totalBalance),
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         Container(
                           height: 1,
                           width: 120,
@@ -319,11 +505,24 @@ class _HomeScreenState extends State<HomeScreen>
                     // Tab Bar Section
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Container(
+                      child: GlassmorphicContainer(
+                        width: double.infinity,
                         height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(12),
-                          borderRadius: BorderRadius.circular(15),
+                        borderRadius: 15,
+                        blur: 15,
+                        alignment: Alignment.center,
+                        border: 1,
+                        linearGradient: LinearGradient(
+                          colors: [
+                            Colors.white.withAlpha(12),
+                            Colors.white.withAlpha(6),
+                          ],
+                        ),
+                        borderGradient: LinearGradient(
+                          colors: [
+                            Colors.white.withAlpha(40),
+                            Colors.white.withAlpha(10),
+                          ],
                         ),
                         child: TabBar(
                           controller: _tabController,
@@ -603,11 +802,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildGlassAvatar(String name) {
+  Widget _buildGlassAvatar(BuildContext context, String name, {double size = 55}) {
+    final auth = context.watch<AuthProvider>();
+    final photoUrl = auth.profilePhotoUrl;
+
     return GlassmorphicContainer(
-      width: 55,
-      height: 55,
-      borderRadius: 15,
+      width: size,
+      height: size,
+      borderRadius: size * 0.27,
       blur: 20,
       alignment: Alignment.center,
       border: 1.5,
@@ -618,18 +820,36 @@ class _HomeScreenState extends State<HomeScreen>
         colors: [Colors.white.withAlpha(127), Colors.blueAccent.withAlpha(127)],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.asset(
-          'assets/images/app_logo2.png',
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Text(
-            name.isNotEmpty ? name[0].toUpperCase() : 'U',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+        borderRadius: BorderRadius.circular(size * 0.22),
+        child: photoUrl != null && photoUrl.isNotEmpty
+            ? (photoUrl.startsWith('http')
+                ? Image.network(
+                    photoUrl,
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(name, size: size),
+                  )
+                : Image.file(
+                    File(photoUrl),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(name, size: size),
+                  ))
+            : _buildInitialAvatar(name, size: size),
+      ),
+    );
+  }
+
+  Widget _buildInitialAvatar(String name, {double size = 55}) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+        style: TextStyle(
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
         ),
       ),
     );
@@ -825,37 +1045,88 @@ class _HomeScreenState extends State<HomeScreen>
     return filtered.fold(0.0, (sum, tx) => sum + tx.amount);
   }
 
+  /// Returns a motivational caption based on balance amount and user name
+  String _getMotivationalCaption(double balance, String name) {
+    final firstName = name.trim().split(' ').first;
+    if (balance < 0) {
+      return '🚨 $firstName, you\'re overspending! Cut back now.';
+    } else if (balance == 0) {
+      return '⚠️ $firstName, your balance is zero! Be careful.';
+    } else if (balance <= 1000) {
+      return '🔴 Low balance, $firstName! Spend very carefully.';
+    } else if (balance <= 5000) {
+      return '🟡 Stay mindful, $firstName! Save a little more.';
+    } else if (balance <= 20000) {
+      return '💚 Good going, $firstName! Keep saving!';
+    } else if (balance <= 50000) {
+      return '🌟 Impressive, $firstName! You\'re doing great!';
+    } else {
+      return '🏆 Amazing, $firstName! You\'re a savings champion!';
+    }
+  }
+
+  /// Returns a color matching the balance level
+  Color _getMotivationalColor(double balance) {
+    if (balance < 0) return Colors.redAccent;
+    if (balance == 0) return Colors.orangeAccent;
+    if (balance <= 1000) return const Color(0xFFFF6B6B);
+    if (balance <= 5000) return Colors.amberAccent;
+    if (balance <= 20000) return const Color(0xFF4ECDC4);
+    if (balance <= 50000) return const Color(0xFF6EE7B7);
+    return const Color(0xFFFFD700);
+  }
+
   Widget _buildMonthSelector() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
-              });
-            },
-            icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70),
-          ),
-          Text(
-            DateFormat('MMMM yyyy').format(_selectedMonth),
-            style: GoogleFonts.lexend(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+      child: GlassmorphicContainer(
+        width: double.infinity,
+        height: 55,
+        borderRadius: 16,
+        blur: 15,
+        alignment: Alignment.center,
+        border: 1,
+        linearGradient: LinearGradient(
+          colors: [
+            Colors.white.withAlpha(12),
+            Colors.white.withAlpha(6),
+          ],
+        ),
+        borderGradient: LinearGradient(
+          colors: [
+            Colors.white.withAlpha(40),
+            Colors.white.withAlpha(10),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                });
+              },
+              icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70),
             ),
-          ),
-          IconButton(
-            onPressed: () {
-              setState(() {
-                _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
-              });
-            },
-            icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70),
-          ),
-        ],
+            Text(
+              DateFormat('MMMM yyyy').format(_selectedMonth),
+              style: GoogleFonts.lexend(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+                });
+              },
+              icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -915,122 +1186,127 @@ class _HomeScreenState extends State<HomeScreen>
                   _selectedWeekFilter = isAll ? null : weekNum;
                 });
               },
-              child: GlassmorphicContainer(
-                width: 150,
-                height: 85,
-                borderRadius: 16,
-                blur: isSelected ? 20 : 0,
-                alignment: Alignment.center,
-                border: isSelected ? 1.5 : 0.5,
-                linearGradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isSelected
-                      ? [const Color(0xFF6366F1).withAlpha(80), const Color(0xFF6366F1).withAlpha(30)]
-                      : [Colors.white.withAlpha(12), Colors.white.withAlpha(5)],
-                ),
-                borderGradient: LinearGradient(
-                  colors: isSelected
-                      ? [const Color(0xFF6366F1).withAlpha(150), const Color(0xFF6366F1).withAlpha(50)]
-                      : [Colors.white24, Colors.white10],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Week Name & Edit Button
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              style: GoogleFonts.lexend(
-                                fontSize: 13,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                color: isSelected ? Colors.white : Colors.white70,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (!isAll && isSelected)
-                            GestureDetector(
-                              onTap: () => _showRenameWeekDialog(context, provider, weekId, weekNum),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                size: 13,
-                                color: Colors.white70,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      // Subtracted balance info
-                      Row(
-                        children: [
-                          Icon(
-                            (income - expense) >= 0 ? Icons.account_balance_wallet_rounded : Icons.warning_amber_rounded,
-                            size: 11,
-                            color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Bal: ',
-                            style: GoogleFonts.lexend(
-                              fontSize: 10,
-                              color: Colors.white38,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              '${(income - expense) < 0 ? '-' : ''}₹${(income - expense).abs().toStringAsFixed(0)}',
-                              style: GoogleFonts.lexend(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Small Details Row (Inc / Exp)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
+              child: AnimatedScale(
+                scale: isSelected ? 1.04 : 0.98,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutBack,
+                child: GlassmorphicContainer(
+                  width: 150,
+                  height: 85,
+                  borderRadius: 16,
+                  blur: isSelected ? 20 : 0,
+                  alignment: Alignment.center,
+                  border: isSelected ? 1.5 : 0.5,
+                  linearGradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isSelected
+                        ? [const Color(0xFF6366F1).withAlpha(80), const Color(0xFF6366F1).withAlpha(30)]
+                        : [Colors.white.withAlpha(12), Colors.white.withAlpha(5)],
+                  ),
+                  borderGradient: LinearGradient(
+                    colors: isSelected
+                        ? [const Color(0xFF6366F1).withAlpha(150), const Color(0xFF6366F1).withAlpha(50)]
+                        : [Colors.white24, Colors.white10],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Week Name & Edit Button
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                displayName,
                                 style: GoogleFonts.lexend(
-                                  fontSize: 9,
-                                  color: Colors.white38,
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  color: isSelected ? Colors.white : Colors.white70,
                                 ),
-                                children: [
-                                  const TextSpan(text: 'In: '),
-                                  TextSpan(
-                                    text: '₹${income.toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      color: Colors.tealAccent,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const TextSpan(text: ' | Ex: '),
-                                  TextSpan(
-                                    text: '₹${expense.toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      color: Colors.redAccent,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            if (!isAll && isSelected)
+                              GestureDetector(
+                                onTap: () => _showRenameWeekDialog(context, provider, weekId, weekNum),
+                                child: const Icon(
+                                  Icons.edit_rounded,
+                                  size: 13,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        // Subtracted balance info
+                        Row(
+                          children: [
+                            Icon(
+                              (income - expense) >= 0 ? Icons.account_balance_wallet_rounded : Icons.warning_amber_rounded,
+                              size: 11,
+                              color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Bal: ',
+                              style: GoogleFonts.lexend(
+                                fontSize: 10,
+                                color: Colors.white38,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${(income - expense) < 0 ? '-' : ''}₹${(income - expense).abs().toStringAsFixed(0)}',
+                                style: GoogleFonts.lexend(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: (income - expense) >= 0 ? Colors.tealAccent : Colors.redAccent,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Small Details Row (Inc / Exp)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: RichText(
+                                text: TextSpan(
+                                  style: GoogleFonts.lexend(
+                                    fontSize: 9,
+                                    color: Colors.white38,
+                                  ),
+                                  children: [
+                                    const TextSpan(text: 'In: '),
+                                    TextSpan(
+                                      text: '₹${income.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        color: Colors.tealAccent,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const TextSpan(text: ' | Ex: '),
+                                    TextSpan(
+                                      text: '₹${expense.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1603,134 +1879,146 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildDrawer(BuildContext context, AuthProvider auth) {
     return Drawer(
-      backgroundColor: const Color(0xFF0F172A),
-      child: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 40),
-            // Profile Info Header
-            _buildGlassAvatar(auth.currentUser?.name ?? 'User'),
-            const SizedBox(height: 20),
-            Text(
-              auth.currentUser?.name ?? 'Guest User',
-              style: GoogleFonts.lexend(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withAlpha(160),
+            border: const Border(
+              right: BorderSide(color: Colors.white10, width: 1.5),
             ),
-            Text(
-              auth.currentUser?.phoneNumber ?? 'No phone associated',
-              style: GoogleFonts.outfit(fontSize: 14, color: Colors.white60),
-            ),
-            const SizedBox(height: 40),
-            const Divider(color: Colors.white10),
-
-            // Menu Items
-            _buildDrawerItem(
-              icon: Icons.person_outline_rounded,
-              title: 'Profile Settings',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileSettingsScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.history_rounded,
-              title: 'Transaction History',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StatsScreen()),
-                );
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.notifications_active_rounded,
-              title: 'Bill Reminders',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ReminderScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.settings_outlined,
-              title: 'App Settings',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.info_outline_rounded,
-              title: 'About this App',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AboutScreen()),
-                );
-              },
-            ),
-
-            const Spacer(),
-
-            // Logout Button at Bottom
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: InkWell(
-                onTap: () {
-                  Navigator.pop(context);
-                  _showLogoutWarning(context);
-                },
-                borderRadius: BorderRadius.circular(15),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withAlpha(25),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.redAccent.withAlpha(51)),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.logout_rounded, color: Colors.redAccent),
-                      SizedBox(width: 12),
-                      Text(
-                        'Log Out',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
+                // Profile Info Header
+                _buildGlassAvatar(context, auth.currentUser?.name ?? 'User'),
+                const SizedBox(height: 20),
+                Text(
+                  auth.currentUser?.name ?? 'Guest User',
+                  style: GoogleFonts.lexend(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-              ),
-            ),
+                Text(
+                  auth.currentUser?.phoneNumber ?? 'No phone associated',
+                  style: GoogleFonts.outfit(fontSize: 14, color: Colors.white60),
+                ),
+                const SizedBox(height: 40),
+                const Divider(color: Colors.white10),
 
-            Text(
-              'Money Tracker v${AppDetails.appVersion}',
-              style: GoogleFonts.lexend(fontSize: 10, color: Colors.white24),
+                // Menu Items
+                _buildDrawerItem(
+                  icon: Icons.person_outline_rounded,
+                  title: 'Profile Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.history_rounded,
+                  title: 'Transaction History',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const StatsScreen()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.notifications_active_rounded,
+                  title: 'Bill Reminders',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ReminderScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.settings_outlined,
+                  title: 'App Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.info_outline_rounded,
+                  title: 'About this App',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AboutScreen()),
+                    );
+                  },
+                ),
+
+                const Spacer(),
+
+                // Logout Button at Bottom
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showLogoutWarning(context);
+                    },
+                    borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withAlpha(25),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.redAccent.withAlpha(51)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.logout_rounded, color: Colors.redAccent),
+                          SizedBox(width: 12),
+                          Text(
+                            'Log Out',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                Text(
+                  'Money Tracker v${AppDetails.appVersion}',
+                  style: GoogleFonts.lexend(fontSize: 10, color: Colors.white24),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );
